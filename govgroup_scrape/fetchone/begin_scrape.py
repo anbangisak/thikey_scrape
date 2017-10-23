@@ -21,14 +21,25 @@ class ScrapeIn(object):
         self.driver.get("http://www.govgroup.com/")
         mainmenu_list = self.driver.find_elements_by_xpath(
             "//ul[@class='pseudoct']/li")
-        submenu_list = mainmenu_list[0].find_elements_by_xpath(
-            ".//div/ul/div")
-        inner_sub_menu_list = submenu_list[0].find_elements_by_xpath(
-            ".//li/ul/li")
-        list_page_element = inner_sub_menu_list[0].find_element_by_xpath(
-            ".//a")
-        list_page_link = list_page_element.get_attribute('href')
-        self.listing_links.append(list_page_link)
+        for mainmenu in mainmenu_list:
+            submenu_list = mainmenu.find_elements_by_xpath(
+                ".//div/ul/div")
+            for submenu in submenu_list:
+                inner_sub_menu_list = submenu.find_elements_by_xpath(
+                    ".//li/ul/li")
+                for inner_submenu in inner_sub_menu_list:
+                    list_page_element = inner_submenu.find_element_by_xpath(
+                        ".//a")
+                    list_page_link = list_page_element.get_attribute('href')
+                    self.listing_links.append(list_page_link)
+        print self.listing_links
 
     def driver_destroy(self):
         self.driver.close()
+
+
+def to_use():
+    from fetchone.begin_scrape import ScrapeIn
+    obj = ScrapeIn()
+    obj.get_in()
+    obj.driver_destroy()
