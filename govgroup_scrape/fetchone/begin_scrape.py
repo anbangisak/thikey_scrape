@@ -1,5 +1,8 @@
+import time
+
 # from os.path import abspath, dirname
 from selenium import webdriver
+from fetchone.models import GovDetail
 # from selenium.webdriver.common.keys import Keys
 
 # driver = webdriver.Firefox()
@@ -16,6 +19,7 @@ class ScrapeIn(object):
         self.driver = webdriver.Chrome(
             chrome_driver_path, chrome_options=options)
         self.listing_links = []
+        self.detail_links = []
 
     def get_in(self):
         self.driver.get("http://www.govgroup.com/")
@@ -33,6 +37,61 @@ class ScrapeIn(object):
                     list_page_link = list_page_element.get_attribute('href')
                     self.listing_links.append(list_page_link)
         print self.listing_links
+
+    def detail_pg_list(self):
+        for lt_lks in self.listing_links:
+            self.driver.get(self.lt_lks)
+            options = self.driver.find_elements_by_xpath(
+                '//select[@name="navInfo[itemsPerPage]"]/option')
+            self.driver.find_element_by_xpath(
+                "//select[@name="
+                "'navInfo[itemsPerPage]']/option[text()='{0}']".format(
+                    options[len(options) - 1].text)).click()
+            time.sleep(1)
+            boxes = self.driver.find_elements_by_xpath(
+                "//div[@class='brief_box']")
+            for box in boxes:
+                dtl_lnk = box.find_element_by_xpath(
+                    ".//div[@class='brief_name']/a").get_attribute("href")
+                self.detail_links.append(dtl_lnk)
+        print self.detail_links
+
+    def get_detail_data(self):
+        for dtl_lks in self.detail_links:
+            gov, created = GovDetail.objects.get_or_create(url=dtl_lks)
+            if created:
+                gov.name = self.driver.find_element_by_xpath(
+                    '//*[@id="dt_name"]/h1').text
+                gov.img = self.driver.find_element_by_xpath(
+                    '//*[@id="dt_imagebox"]/div[@class="mainbigimage"]/img'
+                ).get_attribute('src')
+                gov.large_img = self.driver.find_element_by_xpath(
+                    '//*[@id="dt_imagebox"]/div[@class="mainbigimage"]/img'
+                ).get_attribute('largeimagefullname')
+                prop_str = self.driver.find_element_by_xpath(
+                    '//*[@id="dt_propertyinfo"]').text
+                gov.desc = self.driver.find_element_by_xpath(
+                    '//*[@id="dt_disc"]/div[@class="dt_spec_content"]').text
+                props = prop_str.split("\n")
+                prop_dict = {}
+                [prop_dict.update(
+                    {"condition": s.replace("Condition: ", "")}
+                ) for s in props if "Condition: " in s]
+                [prop_dict.update(
+                    {"upc": s.replace("UPC: ", "")}
+                ) for s in props if "UPC: " in s]
+                [prop_dict.update(
+                    {"sku": s.replace("SKU: ", "")}
+                ) for s in props if "SKU: " in s]
+                cats = self.driver.find_elements_by_xpath(
+                    "//span[@class='breadcrumbsItem']")
+                gov.category = cats[len(cats) - 1].find_element_by_xpath(
+                    ".//a").text
+                gov.crawled = True
+                gov.sku = prop_dict["sku"]
+                gov.upc = prop_dict["upc"]
+                gov.condition = prop_dict["condition"]
+                gov.save()
 
     def driver_destroy(self):
         self.driver.close()
