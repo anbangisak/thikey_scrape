@@ -32,3 +32,17 @@ class GovDetail(BaseModelLogger):
 
     def __unicode__(self):
         return u"{0} - {1}".format(self.name, self.sku)
+
+
+class ListinLink(BaseModelLogger):
+    """ Saving Listing Links Gov Data """
+
+    url = models.TextField(blank=True, null=True)
+    crawled = models.BooleanField(default=False)
+
+
+class DetailLink(BaseModelLogger):
+    """ Saving Detail Links Gov Data """
+
+    url = models.TextField(blank=True, null=True)
+    crawled = models.BooleanField(default=False)

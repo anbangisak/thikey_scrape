@@ -2,7 +2,7 @@ import time
 
 # from os.path import abspath, dirname
 from selenium import webdriver
-from fetchone.models import GovDetail
+from fetchone.models import GovDetail, DetailLink, ListinLink
 # from selenium.webdriver.common.keys import Keys
 
 # driver = webdriver.Firefox()
@@ -36,30 +36,56 @@ class ScrapeIn(object):
                         ".//a")
                     list_page_link = list_page_element.get_attribute('href')
                     self.listing_links.append(list_page_link)
+                    listin_lk, created = ListinLink.objects.get_or_create(
+                        url=list_page_link)
         print self.listing_links
 
     def detail_pg_list(self):
-        for lt_lks in self.listing_links:
-            self.driver.get(self.lt_lks)
+        for lt_lks in ListinLink.objects.filter(crawled=False):
+            self.driver.get(lt_lks.url)
+            time.sleep(1)
             options = self.driver.find_elements_by_xpath(
                 '//select[@name="navInfo[itemsPerPage]"]/option')
             self.driver.find_element_by_xpath(
-                "//select[@name="
-                "'navInfo[itemsPerPage]']/option[text()='{0}']".format(
+                "//select[@name='navInfo[itemsPerPage]']/option[text()='{0}']".format(
                     options[len(options) - 1].text)).click()
-            time.sleep(1)
-            boxes = self.driver.find_elements_by_xpath(
-                "//div[@class='brief_box']")
-            for box in boxes:
-                dtl_lnk = box.find_element_by_xpath(
-                    ".//div[@class='brief_name']/a").get_attribute("href")
-                self.detail_links.append(dtl_lnk)
+            time.sleep(5)
+            print "-- sleep complete --"
+            pages = self.driver.find_elements_by_xpath(
+                "//a[@class='navigator_products_link']")
+            # for page in range(len(pages)):
+            while True:
+                boxes = self.driver.find_elements_by_xpath(
+                    "//div[@class='brief_box']")
+                for box in boxes:
+                    dtl_lnk = box.find_element_by_xpath(
+                        ".//div[@class='brief_name']/a").get_attribute("href")
+                    self.detail_links.append(dtl_lnk)
+                    de_lk, created = DetailLink.objects.get_or_create(
+                        url=dtl_lnk)
+                pages = self.driver.find_elements_by_xpath(
+                    "//a[@class='navigator_products_link']")
+                if len(pages):
+                    [pg.click() for pg in pages if pg.text == ">"]
+                else:
+                    break
+                # if len(pages) and pages[len(pages) - 1].text == ">>":
+                    # pages[len(pages) - 2].click()
+                # elif len(pages) and pages[len(pages) - 1].text == ">":
+                #     pages[len(pages) - 1].click()
+                # else:
+                #     break
+                time.sleep(5)
+            lt_lks.crawled = True
+            lt_lks.save()
         print self.detail_links
 
     def get_detail_data(self):
-        for dtl_lks in self.detail_links:
-            gov, created = GovDetail.objects.get_or_create(url=dtl_lks)
-            if created:
+        for dtl_lks in DetailLink.objects.filter(crawled=False):
+            self.driver.get(dtl_lks.url)
+            gov, created = GovDetail.objects.get_or_create(url=dtl_lks.url)
+            time.sleep(1)
+            if gov:
                 gov.name = self.driver.find_element_by_xpath(
                     '//*[@id="dt_name"]/h1').text
                 gov.img = self.driver.find_element_by_xpath(
@@ -88,10 +114,12 @@ class ScrapeIn(object):
                 gov.category = cats[len(cats) - 1].find_element_by_xpath(
                     ".//a").text
                 gov.crawled = True
-                gov.sku = prop_dict["sku"]
-                gov.upc = prop_dict["upc"]
-                gov.condition = prop_dict["condition"]
+                gov.sku = prop_dict.get("sku", None)
+                gov.upc = prop_dict.get("upc", None)
+                gov.condition = prop_dict.get("condition", None)
                 gov.save()
+            dtl_lks.crawled = True
+            dtl_lks.save()
 
     def driver_destroy(self):
         self.driver.close()
